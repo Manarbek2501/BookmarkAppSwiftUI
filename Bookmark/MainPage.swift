@@ -13,10 +13,10 @@ enum ScreenState {
     case listView
 }
 struct Bookmark: Identifiable {
-     let id = UUID()
-     var title: String
-     var link: String
- }
+    let id = UUID()
+    var title: String
+    var link: String
+}
 
 
 struct MainPage: View {
@@ -26,12 +26,13 @@ struct MainPage: View {
     @State var savedText: [String] = []
     @State var savedLink: [String] = []
     @State var showBottonSheet = false
+    @State var dict: [String: String] = [:]
     var body: some View {
         switch screenState {
         case .firstAdd:
-            SaveFirstView(showBottonSheet: $showBottonSheet,textInput: $textInput, linkInput: $linkInput, savedText: $savedText, savedLink: $savedLink,  screenState: $screenState)
+            SaveFirstView(showBottonSheet: $showBottonSheet,textInput: $textInput, linkInput: $linkInput, savedText: $savedText, savedLink: $savedLink,  screenState: $screenState, dict: $dict)
         case .listView:
-            ListView(savedText: $savedText, savedLink: $savedLink, textInput: $textInput, linkInput: $linkInput,showBottonSheet: $showBottonSheet, screenState: $screenState)
+            ListView(savedText: $savedText, savedLink: $savedLink, textInput: $textInput, linkInput: $linkInput,showBottonSheet: $showBottonSheet, screenState: $screenState, dict: $dict)
         }
     }
 }
@@ -44,6 +45,7 @@ struct SaveFirstView: View {
     @Binding var savedText: [String]
     @Binding var savedLink: [String]
     @Binding var screenState: ScreenState
+    @Binding var dict: [String: String]
     var body: some View {
         ZStack {
             VStack {
@@ -62,7 +64,7 @@ struct SaveFirstView: View {
                 
             }
             .padding([.leading, .trailing], 16)
-            BottomSheet(showBottonSheet: $showBottonSheet, textInput: $textInput, linkInput: $linkInput, savedText: $savedText, savedLink: $savedLink, screenState: $screenState)
+            BottomSheet(showBottonSheet: $showBottonSheet, textInput: $textInput, linkInput: $linkInput, savedText: $savedText, savedLink: $savedLink, screenState: $screenState, dict: $dict)
         }
     }
 }
@@ -74,6 +76,7 @@ struct BottomSheet: View {
     @Binding var savedText: [String]
     @Binding var savedLink: [String]
     @Binding var screenState: ScreenState
+    @Binding var dict: [String: String]
     var body: some View {
         if showBottonSheet {
             bottomSheet()
@@ -100,7 +103,7 @@ struct BottomSheet: View {
                         Spacer()
                     }
                     .padding(.top, 10)
-                   
+                    
                     TextField("Add bookmark", text: $textInput)
                         .padding(16)
                         .font(.system(size: 17, weight: .regular))
@@ -125,6 +128,9 @@ struct BottomSheet: View {
                         .onTapGesture {
                             savedText.append(textInput)
                             savedLink.append(linkInput)
+                            for (index, element) in savedText.enumerated() {
+                                dict[element] = savedLink[index]
+                            }
                             textInput = ""
                             linkInput = ""
                             showBottonSheet = false
@@ -151,42 +157,43 @@ struct ListView: View {
     @Binding var linkInput: String
     @Binding var showBottonSheet: Bool
     @Binding var screenState: ScreenState
+    @Binding var dict: [String: String]
     @State private var editMode = EditMode.inactive
     var body: some View {
         NavigationView{
             ZStack{
-                VStack {
-                    ZStack{
-                        VStack{
-                            List {
-                                ForEach(savedText, id: \.self) {items in
-                                    HStack{
-                                        Text(items)
-                                            .font(.system(size: 17, weight: .regular))
-                                        Spacer()
-                                        ForEach(savedLink, id: \.self) {url in
-                                            Link(destination: URL(string: url) ?? URL(string: "https://www.google.com")!) {
-                                                Image(systemName: "arrow.up.forward.square")
-                                                    .font(.system(size: 24))
-                                            }
-                                        }
-                                    }
-                                    .padding(.top, 31)
+                VStack{
+                    List {
+                        ForEach(dict.sorted(by: <), id:\.key) { (key, value) in
+                            HStack {
+                                if key.isEmpty {
+                                    Text("Google")
+                                } else {
+                                    Text(key)
                                 }
-                                .onDelete(perform: onDelete)
-                                //                    .onMove(perform: onMove)
+                                Spacer()
+                                Link(destination: URL(string: value) ?? URL(string: "https://www.google.com")!) {
+                                    Image(systemName: "arrow.up.forward.square")
+                                        .font(.system(size: 24))
+                                }
                             }
-                            .listStyle(.inset)
-                            CustomButton(title: "Add bookmark")
-                                .onTapGesture {
-                                    showBottonSheet = true
-                                }
+                            .padding(.top, 39)
                         }
+                        .onDelete(perform: onDelete)
+                        .onMove(perform: onMove)
                     }
+                    .listStyle(.inset)
+                    CustomButton(title: "Add bookmark")
+                        .onTapGesture {
+                            showBottonSheet = true
+                        }
                 }
                 .padding([.leading, .trailing], 16)
-                BottomSheet(showBottonSheet: $showBottonSheet, textInput: $textInput, linkInput: $linkInput, savedText: $savedText, savedLink: $savedLink, screenState: $screenState)
+                BottomSheet(showBottonSheet: $showBottonSheet, textInput: $textInput, linkInput: $linkInput, savedText: $savedText, savedLink: $savedLink, screenState: $screenState, dict: $dict)
             }
+            
+            
+            
             
         }
         .navigationTitle("List")
@@ -194,20 +201,22 @@ struct ListView: View {
     }
     
     private func onDelete(offsets: IndexSet) {
-           savedText.remove(atOffsets: offsets)
-       }
-
-//       // 3.
-//       private func onMove(source: IndexSet, destination: Int) {
-//           savedText.move(fromOffsets: source, toOffset: destination)
-//       }
+            savedText.remove(atOffsets: offsets)
+        }
+    private func onMove(from source: IndexSet, to destination: Int) {
+        savedText.move(fromOffsets: source, toOffset: destination)
+    }
 }
 
-
-
- 
-    
-
+extension Dictionary {
+    init(keys: [Key], values: [Value]) {
+        self.init()
+        
+        for (key, value) in zip(keys, values) {
+            self[key] = value
+        }
+    }
+}
 
 
 
@@ -232,3 +241,15 @@ struct MainPage_Previews: PreviewProvider {
         MainPage()
     }
 }
+
+//ForEach(savedText, id: \.self) {items in
+//    Text(items)
+//        .font(.system(size: 17, weight: .regular))
+//    Spacer()
+//    ForEach(savedLink, id: \.self) {url in
+//        Link(destination: URL(string: url) ?? URL(string: "https://www.google.com")!) {
+//            Image(systemName: "arrow.up.forward.square")
+//                .font(.system(size: 24))
+//        }
+//    }
+//}.onDelete(perform: onDelete)
